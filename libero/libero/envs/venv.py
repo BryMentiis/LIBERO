@@ -8,7 +8,7 @@ import time
 
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from multiprocessing import Array, Pipe, connection
+from multiprocessing import Array, Pipe, connection, get_context
 from multiprocessing.context import Process
 from typing import Any, Callable, List, Optional, Tuple, Union
 
@@ -356,7 +356,12 @@ class SubprocEnvWorker(EnvWorker):
     def __init__(
         self, env_fn: Callable[[], gym.Env], share_memory: bool = False
     ) -> None:
-        self.parent_remote, self.child_remote = Pipe()
+        # Use "spawn" instead of the default "fork": importing robosuite in the
+        # parent initializes the NVIDIA EGL driver, whose state is not
+        # fork-safe -- forked children fail with EGL_BAD_ALLOC in
+        # eglCreateContext. Spawned workers start from a clean process.
+        ctx = get_context("spawn")
+        self.parent_remote, self.child_remote = ctx.Pipe()
         self.share_memory = share_memory
         self.buffer: Optional[Union[dict, tuple, ShArray]] = None
         if self.share_memory:
@@ -371,7 +376,7 @@ class SubprocEnvWorker(EnvWorker):
             CloudpickleWrapper(env_fn),
             self.buffer,
         )
-        self.process = Process(target=_worker, args=args, daemon=True)
+        self.process = ctx.Process(target=_worker, args=args, daemon=True)
         self.process.start()
         self.child_remote.close()
         super().__init__(env_fn)

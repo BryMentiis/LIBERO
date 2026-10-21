@@ -241,9 +241,23 @@ def main():
         }
 
         env_num = 20
-        env = SubprocVectorEnv(
-            [lambda: OffScreenRenderEnv(**env_args) for _ in range(env_num)]
-        )
+
+        def make_env():
+            # Creating 20 EGL contexts concurrently intermittently fails with
+            # EGL_BAD_ALLOC on some driver versions; retry instead of crashing
+            # the worker (which kills the main process with ConnectionResetError).
+            for attempt in range(30):
+                try:
+                    return OffScreenRenderEnv(**env_args)
+                except Exception as e:
+                    print(
+                        f"[warn] OffScreenRenderEnv creation failed "
+                        f"(attempt {attempt + 1}/30): {e}"
+                    )
+                    time.sleep(1 + attempt)
+            raise RuntimeError("[error] failed to create OffScreenRenderEnv")
+
+        env = SubprocVectorEnv([make_env for _ in range(env_num)])
         env.reset()
         env.seed(cfg.seed)
         algo.reset()
