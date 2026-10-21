@@ -1,5 +1,6 @@
 import os
 import time
+from functools import partial
 
 import numpy as np
 import robomimic.utils.tensor_utils as TensorUtils
@@ -8,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, RandomSampler
 
+from libero.lifelong.datasets import obs_utils_init_worker
 from libero.lifelong.metric import *
 from libero.lifelong.models import *
 from libero.lifelong.utils import *
@@ -142,7 +144,14 @@ class Sequential(nn.Module, metaclass=AlgoMeta):
             batch_size=self.cfg.train.batch_size,
             num_workers=self.cfg.train.num_workers,
             sampler=RandomSampler(dataset),
-            persistent_workers=True,
+            persistent_workers=self.cfg.train.num_workers > 0,
+            worker_init_fn=(
+                partial(
+                    obs_utils_init_worker, obs_modality=self.cfg.data.obs.modality
+                )
+                if self.cfg.train.num_workers > 0
+                else None
+            ),
         )
 
         prev_success_rate = -1.0

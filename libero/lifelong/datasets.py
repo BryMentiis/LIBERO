@@ -16,6 +16,17 @@ from torch.utils.data import Dataset
 """
 
 
+def obs_utils_init_worker(worker_id, obs_modality):
+    """DataLoader worker_init_fn.
+
+    Spawned DataLoader workers re-import modules from scratch, so robomimic's
+    global ObsUtils modality registries are uninitialized inside workers and
+    process_obs would crash. Initialize them per worker.
+    """
+    if ObsUtils.OBS_KEYS_TO_MODALITIES is None:
+        ObsUtils.initialize_obs_utils_with_obs_specs({"obs": obs_modality})
+
+
 def get_dataset(
     dataset_path,
     obs_modality,

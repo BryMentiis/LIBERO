@@ -8,11 +8,13 @@ import time
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
+from functools import partial
 from torch.utils.data import DataLoader
 
 from libero.libero.envs import OffScreenRenderEnv, SubprocVectorEnv, DummyVectorEnv
 from libero.libero.utils.time_utils import Timer
 from libero.libero.utils.video_utils import VideoWriter
+from libero.lifelong.datasets import obs_utils_init_worker
 from libero.lifelong.utils import *
 
 
@@ -209,6 +211,11 @@ def evaluate_loss(cfg, algo, benchmark, datasets):
             batch_size=cfg.eval.batch_size,
             num_workers=cfg.eval.num_workers,
             shuffle=False,
+            worker_init_fn=(
+                partial(obs_utils_init_worker, obs_modality=cfg.data.obs.modality)
+                if cfg.eval.num_workers > 0
+                else None
+            ),
         )
         test_loss = 0
         for data in dataloader:

@@ -103,7 +103,20 @@ def compute_flops(algo, dataset, cfg):
     GFLOPs = macs * 2 / 1e9
     MParams = params / 1e6
     del model
+    # the getitem above lazily reopens the hdf5 handle in this process; close it,
+    # otherwise the dataset holds an open h5py.File and cannot be pickled to
+    # DataLoader workers (num_workers > 0)
+    _close_hdf5_handles(dataset)
     return GFLOPs, MParams
+
+
+def _close_hdf5_handles(dataset):
+    inner = getattr(dataset, "sequence_dataset", dataset)
+    if hasattr(inner, "close_and_delete_hdf5_handle"):
+        inner.close_and_delete_hdf5_handle()
+    for sub in getattr(dataset, "sequence_datasets", []):
+        if hasattr(sub, "close_and_delete_hdf5_handle"):
+            sub.close_and_delete_hdf5_handle()
 
 
 def create_experiment_dir(cfg):
